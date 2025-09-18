@@ -1,17 +1,16 @@
 import deps
 import text, pupils_list
-from datetime import datetime, timedelta
-from collections import defaultdict
 from telebot import *
 
 from pupils_list import Status
 
-poll_closure_minutes = 1
-admin_to_send_to = deps.admins[0]
+poll_closure_minutes = 0.2
+admin_to_send_to = deps.admins['ivan']
 
 trusted = u'\u2705'
 not_trusted = u'\u274C'
 
+active_polls = []
 def commands_register(bot):
 
     @bot.message_handler(commands=['start'])
@@ -19,7 +18,7 @@ def commands_register(bot):
         bot.send_message(message.chat.id, text.greetings_message)
 
     @bot.message_handler(commands=['get_chat_id'])
-    def start(message):
+    def get_chat_id(message):
         bot.send_message(message.chat.id, message.chat.id)
 
     def get_id(name):
@@ -67,15 +66,14 @@ def commands_register(bot):
             if pupils_list.pupils[pupil][2] == Status.NOT_TRUSTED:
                 response += pupils_list.pupils[pupil][0] + ": " + "NOT_TRUSTED" + "\n"
         if response == "": response = "No distrusteed!"
-        bot.send_message(admin_to_send_to, response)
+        return response
 
     @bot.message_handler(commands=['help'])
     def start(message):
         bot.send_message(message.chat.id, text.help_message)
 
     def check_rights(message):
-        print(message.from_user.id)
-        if message.from_user.id in deps.admins:
+        if message.from_user.id in deps.admins.values():
             return True
         else:
             bot.reply_to(message, 'Недостаточно прав')
@@ -84,7 +82,7 @@ def commands_register(bot):
     def close_poll_later(chat_id, message_id, delay_minutes):
         time.sleep(delay_minutes * 60)
         bot.stop_poll(chat_id, message_id)
-        show_stats()
+        show_stats(active_polls[0])
 
     def get_username_by_id(user_id):
         try:
@@ -96,10 +94,13 @@ def commands_register(bot):
 
     @bot.message_handler(commands=['make_poll'])
     def create_poll_command(message):
+        if len(active_polls) > 0:
+            bot.reply_to(message, f"Уже запущен опрос №{active_polls[0]}!")
+            return 0
         if not check_rights(message): return 0
         create_poll(message)
 
-    def create_poll(message):
+    def create_poll(message, active_polls=active_polls):
         try:
             date = datetime.now()
             update_pupils_list()
@@ -116,7 +117,9 @@ def commands_register(bot):
                 allows_multiple_answers=False,
                 type='regular'
             )
-            bot.send_message(message.chat.id, "Опрос закрывается в течении полутора часов!")
+            active_polls += [str(poll_message.id)]
+            print(active_polls)
+            bot.send_message(message.chat.id, f"Опрос #{active_polls[-1]} закрывается в течении полутора часов!")
             close_poll_later(message.chat.id, poll_message.id, poll_closure_minutes)
         except Exception as e:
             bot.reply_to(message, f"Ошибка при создании опроса: {e}")
@@ -131,28 +134,32 @@ def commands_register(bot):
         selected_option = poll.option_ids[0]
         if selected_option == 3: return 0
         poll_statistics[f"{user_id}"][1] = pupils_list.Status(selected_option)
-        print(f"Статистика опроса {poll_id}: {poll_statistics[f"{user_id}"][0]}, {pupils_list.Status(selected_option)}")
+        #print(f"Статистика опроса {poll_id}: {poll_statistics[f"{user_id}"][0]}, {pupils_list.Status(selected_option)}")
 
     @bot.message_handler(commands=['show_stats'])
     def show_stats_by_command(message):
         if not check_rights(message):
             bot.reply_to(message, "Недостаточно прав")
             return 0
-        show_stats()
+        if len(active_polls) > 0:
+            show_stats(active_polls[0])
+        else:
+            bot.reply_to(message, "Нет активных опросов")
 
 
-    def show_stats():
-        if poll_statistics:
+    def show_stats(poll_number):
+        print(active_polls, poll_statistics)
+        if poll_statistics and len(active_polls) > 0:
+            active_polls.pop(0)
             present = [people for people in poll_statistics if poll_statistics[people][1] == Status.PRESENT]
             not_present = [people for people in poll_statistics if poll_statistics[people][1] == Status.NOT_PRESENT]
             missing = [people for people in poll_statistics if poll_statistics[people][1] == Status.MISSING]
             problems = [people for people in poll_statistics if poll_statistics[people][1] == Status.PROBLEMS]
-            print(present)
             PR_list = [f"{pupils_list.pupils[person][0] +(trusted if pupils_list.pupils[person][2] == Status.TRUSTED else not_trusted)}\n" for person in present]
             NPR_list = [f"{pupils_list.pupils[person][0]+(trusted if pupils_list.pupils[person][2] == Status.TRUSTED else not_trusted)}\n" for person in not_present]
             MS_list = [f"{pupils_list.pupils[person][0]+(trusted if pupils_list.pupils[person][2] == Status.TRUSTED else not_trusted)}\n" for person in missing]
             PRB = [f"{pupils_list.pupils[person][0]+(trusted if pupils_list.pupils[person][2] == Status.TRUSTED else not_trusted)}\n" for person in problems]
-            response = ''
+            response = f'Статистика за опрос #{poll_number}:\n'
             for list, name in [[PR_list, 'Присутствует:'], [NPR_list, "Не присутствует:"], [PRB, "По причине:"], [MS_list, "Не ответил:"]]:
                 response += name + '\n'
                 for pupil in list:
@@ -166,4 +173,3 @@ def commands_register(bot):
     def update_pupils_list():
         for person in pupils_list.pupils.keys():
             pupils_list.pupils[person][1] = Status.MISSING
-
