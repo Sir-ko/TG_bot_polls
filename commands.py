@@ -4,11 +4,17 @@ from telebot import *
 
 from pupils_list import Status
 
+<<<<<<< Updated upstream
 poll_closure_minutes = 0.2
 admin_to_send_to = deps.admins['ivan']
+=======
+poll_closure_minutes = 90
+admin_to_send_to = deps.admins[0]
+>>>>>>> Stashed changes
 
 trusted = u'\u2705'
 not_trusted = u'\u274C'
+thread = 2636
 
 active_polls = []
 def commands_register(bot):
@@ -17,10 +23,13 @@ def commands_register(bot):
     def start(message):
         bot.send_message(message.chat.id, text.greetings_message)
 
+<<<<<<< Updated upstream
     @bot.message_handler(commands=['get_chat_id'])
     def get_chat_id(message):
         bot.send_message(message.chat.id, message.chat.id)
 
+=======
+>>>>>>> Stashed changes
     def get_id(name):
         try:
             name = ' '.join(name.split()[1:])
@@ -73,7 +82,12 @@ def commands_register(bot):
         bot.send_message(message.chat.id, text.help_message)
 
     def check_rights(message):
+<<<<<<< Updated upstream
         if message.from_user.id in deps.admins.values():
+=======
+        #print(message.from_user.id)
+        if message.from_user.id in deps.admins:
+>>>>>>> Stashed changes
             return True
         else:
             bot.reply_to(message, 'Недостаточно прав')
@@ -106,6 +120,7 @@ def commands_register(bot):
             update_pupils_list()
             poll_message = bot.send_poll(
                 chat_id=message.chat.id,
+                message_thread_id=thread,
                 question=f"Придете ли вы {date.day}/{date.month}/{date.year}?",
                 options=[
                     "Да",
@@ -117,9 +132,13 @@ def commands_register(bot):
                 allows_multiple_answers=False,
                 type='regular'
             )
+<<<<<<< Updated upstream
             active_polls += [str(poll_message.id)]
             print(active_polls)
             bot.send_message(message.chat.id, f"Опрос #{active_polls[-1]} закрывается в течении полутора часов!")
+=======
+            bot.send_message(message.chat.id,message_thread_id=thread, text="Опрос закрывается в течении полутора часов!")
+>>>>>>> Stashed changes
             close_poll_later(message.chat.id, poll_message.id, poll_closure_minutes)
         except Exception as e:
             bot.reply_to(message, f"Ошибка при создании опроса: {e}")
